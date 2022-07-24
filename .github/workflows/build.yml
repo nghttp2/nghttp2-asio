@@ -1,0 +1,67 @@
+name: build
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+        buildtool: [autotools, cmake]
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Linux setup
+      run: |
+        sudo apt-get install \
+          g++-11 \
+          clang-12 \
+          autoconf \
+          automake \
+          autotools-dev \
+          libtool \
+          pkg-config \
+          libnghttp2-dev \
+          libssl-dev \
+          libboost-dev \
+          libboost-thread-dev \
+          cmake \
+          cmake-data
+        echo 'CPPFLAGS=-fsanitize=address,undefined -fno-sanitize-recover=undefined -g' >> $GITHUB_ENV
+        echo 'LDFLAGS=-fsanitize=address,undefined -fno-sanitize-recover=undefined' >> $GITHUB_ENV
+    - name: Setup clang
+      if: matrix.compiler == 'clang'
+      run: |
+        echo 'CC=clang-12' >> $GITHUB_ENV
+        echo 'CXX=clang++-12' >> $GITHUB_ENV
+    - name: Setup gcc
+      if: matrix.compiler == 'gcc'
+      run: |
+        echo 'CC=gcc-11' >> $GITHUB_ENV
+        echo 'CXX=g++-11' >> $GITHUB_ENV
+    - name: Configure autotools
+      run: |
+        autoreconf -i
+        ./configure
+    - name: Configure cmake
+      if: matrix.buildtool == 'cmake'
+      run: |
+        make dist
+        VERSION=$(grep PACKAGE_VERSION config.h | cut -d' ' -f3 | tr -d '"')
+        tar xf nghttp2-asio-$VERSION.tar.gz
+        cd nghttp2-asio-$VERSION
+        echo 'NGHTTP2_CMAKE_DIR='"$PWD" >> $GITHUB_ENV
+
+        cmake -DCPPFLAGS="$CPPFLAGS" -DLDFLAGS="$LDFLAGS" .
+    - name: Build nghttp2 with autotools
+      if: matrix.buildtool == 'autotools'
+      run: |
+        make -j"$(nproc)" distcheck \
+          DISTCHECK_CONFIGURE_FLAGS="CPPFLAGS=\"$CPPFLAGS\" LDFLAGS=\"$LDFLAGS\""
+    - name: Build nghttp2 with cmake
+      if: matrix.buildtool == 'cmake'
+      run: |
+        cd $NGHTTP2_CMAKE_DIR
+        make -j"$(nproc)"
