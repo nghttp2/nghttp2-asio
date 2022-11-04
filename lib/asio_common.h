@@ -41,6 +41,8 @@ boost::system::error_code make_error_code(nghttp2_error ev);
 
 boost::system::error_code make_error_code(nghttp2_asio_error ev);
 
+boost::system::error_code make_error_code(nghttp2_error_code ev);
+
 generator_cb string_generator(std::string data);
 
 // Returns generator_cb, which just returns NGHTTP2_ERR_DEFERRED

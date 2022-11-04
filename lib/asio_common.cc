@@ -74,6 +74,22 @@ boost::system::error_code make_error_code(nghttp2_asio_error ev) {
                                    nghttp2_asio_category());
 }
 
+class nghttp2_error_code_category_impl : public boost::system::error_category {
+  public:
+    const char *name() const noexcept { return "nghttp2_error_code"; }
+    std::string message(int ev) const noexcept { return nghttp2_http2_strerror(ev); }
+};
+
+const boost::system::error_category &nghttp2_error_code_category() noexcept {
+    static nghttp2_error_code_category_impl cat;
+    return cat;
+}
+
+boost::system::error_code make_error_code(nghttp2_error_code ev){
+  return boost::system::error_code(static_cast<int>(ev),
+                                     nghttp2_error_code_category());
+}
+
 generator_cb string_generator(std::string data) {
   auto strio = std::make_shared<std::pair<std::string, size_t>>(std::move(data),
                                                                 data.size());
