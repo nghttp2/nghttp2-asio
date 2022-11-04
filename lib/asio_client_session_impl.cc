@@ -483,7 +483,7 @@ const request *session_impl::submit(boost::system::error_code &ec,
   ec.clear();
 
   if (stopped_) {
-    ec = make_error_code(static_cast<nghttp2_error>(NGHTTP2_INTERNAL_ERROR));
+    ec = make_error_code(static_cast<nghttp2_error_code>(NGHTTP2_INTERNAL_ERROR));
     return nullptr;
   }
 
