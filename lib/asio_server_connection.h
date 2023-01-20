@@ -88,9 +88,20 @@ public:
   void start() {
     boost::system::error_code ec;
 
+    auto make_writefun = [original_self = this->shared_from_this()] {
+        return [weak = std::weak_ptr<connection>{original_self}]() {
+            auto self = weak.lock();
+            // If connection already got destroyed, the socket is already closed in particular.
+            // Therefore we can simply ignore further calls to write.
+            if (self) {
+                self->do_write();
+            }
+        };
+    };
+
     handler_ = std::make_shared<http2_handler>(
         GET_IO_SERVICE(socket_), socket_.lowest_layer().remote_endpoint(ec),
-        [this]() { do_write(); }, mux_);
+        make_writefun(), mux_);
     if (handler_->start() != 0) {
       stop();
       return;
