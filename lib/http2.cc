@@ -25,6 +25,8 @@
 #include "http2.h"
 #include "util.h"
 
+#include <algorithm>
+
 namespace nghttp2 {
 
 namespace http2 {

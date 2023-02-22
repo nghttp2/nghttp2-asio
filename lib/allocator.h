@@ -31,6 +31,7 @@
 #  include <sys/uio.h>
 #endif // !_WIN32
 
+#include <algorithm>
 #include <cassert>
 #include <utility>
 
