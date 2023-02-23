@@ -84,7 +84,7 @@ generator_cb string_generator(std::string data) {
   return [strio](uint8_t *buf, size_t len, uint32_t *data_flags) {
     auto &data = strio->first;
     auto &left = strio->second;
-    auto n = std::min(len, left);
+    auto n = std::min<size_t>(len, left);
     std::copy_n(data.c_str() + data.size() - left, n, buf);
     left -= n;
     if (left == 0) {

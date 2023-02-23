@@ -22,6 +22,12 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+
+// Avoid min / max macros on windows
+#ifdef _WIN32
+#  define NOMINMAX
+#endif
+
 #include "util.h"
 
 #ifdef HAVE_TIME_H
