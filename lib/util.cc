@@ -179,7 +179,14 @@ std::string http_date(time_t t) {
 char *http_date(char *res, time_t t) {
   struct tm tms;
 
-  if (gmtime_r(&t, &tms) == nullptr) {
+  if (
+#ifndef _WIN32
+      gmtime_r(&t, &tms) == nullptr
+#else
+      // microsoft decided to reverse the arguments
+      gmtime_s(&tms, &t)
+#endif
+      ) {
     return res;
   }
 
