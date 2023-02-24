@@ -74,6 +74,7 @@ set_target_properties(nghttp2_asio_object
 # Public shared library
 if(ENABLE_SHARED_LIB)
   set_property(TARGET nghttp2_asio_object PROPERTY POSITION_INDEPENDENT_CODE 1)
+  target_compile_definitions(nghttp2_asio_object PUBLIC BUILDING_NGHTTP2_ASIO)
   add_library(nghttp2_asio SHARED)
   target_link_libraries(nghttp2_asio PUBLIC nghttp2_asio_object $<TARGET_OBJECTS:url-parser>)
   install(TARGETS nghttp2_asio)
