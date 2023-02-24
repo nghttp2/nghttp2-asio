@@ -36,35 +36,56 @@ set(NGHTTP2_ASIO_SOURCES
   asio_client_tls_context.cc
 )
 
-add_library(nghttp2_asio SHARED
-  ${NGHTTP2_ASIO_SOURCES}
-  $<TARGET_OBJECTS:url-parser>
-)
-target_include_directories(nghttp2_asio PRIVATE
-  "${CMAKE_CURRENT_SOURCE_DIR}/includes"
-  "${CMAKE_CURRENT_SOURCE_DIR}/../third-party"
+if (NOT ENABLE_SHARED_LIB AND NOT ENABLE_STATIC_LIB)
+  if (BUILD_SHARED_LIBS)
+    set(ENABLE_SHARED_LIB ON)
+  else()
+    set(ENABLE_STATIC_LIB ON)
+  endif()
+endif()
 
-  ${LIBNGHTTP2_INCLUDE_DIRS}
-  ${OPENSSL_INCLUDE_DIRS}
-  ${Boost_INCLUDE_DIRS}
+# Object lib used for both static and shared lib
+add_library(nghttp2_asio_object OBJECT ${NGHTTP2_ASIO_SOURCES})
+target_include_directories(nghttp2_asio_object
+  PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/includes"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../third-party"
+    ${LIBNGHTTP2_INCLUDE_DIRS}
+    ${OPENSSL_INCLUDE_DIRS}
+    ${Boost_INCLUDE_DIRS}
+  INTERFACE
+    "${CMAKE_CURRENT_BINARY_DIR}/../lib/includes"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../lib/includes"
+    "${CMAKE_CURRENT_SOURCE_DIR}/includes"
 )
-target_include_directories(nghttp2_asio INTERFACE
-  "${CMAKE_CURRENT_BINARY_DIR}/../lib/includes"
-  "${CMAKE_CURRENT_SOURCE_DIR}/../lib/includes"
-  "${CMAKE_CURRENT_SOURCE_DIR}/includes"
+target_link_libraries(nghttp2_asio_object
+  PRIVATE
+    ${LIBNGHTTP2_LIBRARIES}
+    ${OPENSSL_LIBRARIES}
+  PUBLIC
+    ${Boost_LIBRARIES}
 )
-target_link_libraries(nghttp2_asio
-  ${LIBNGHTTP2_LIBRARIES}
-  ${OPENSSL_LIBRARIES}
-  ${Boost_LIBRARIES}
+set_target_properties(nghttp2_asio_object
+  PROPERTIES
+    VERSION ${LT_VERSION}
+    SOVERSION ${LT_SOVERSION}
 )
-set_target_properties(nghttp2_asio PROPERTIES
-  VERSION ${LT_VERSION} SOVERSION ${LT_SOVERSION})
 
-install(TARGETS nghttp2_asio
-  ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-  LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-  RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
+# Public shared library
+if(ENABLE_SHARED_LIB)
+  set_property(TARGET nghttp2_asio_object PROPERTY POSITION_INDEPENDENT_CODE 1)
+  add_library(nghttp2_asio SHARED)
+  target_link_libraries(nghttp2_asio PUBLIC nghttp2_asio_object $<TARGET_OBJECTS:url-parser>)
+  install(TARGETS nghttp2_asio)
+endif()
+
+# Static library
+if(ENABLE_STATIC_LIB)
+  add_library(nghttp2_asio_static STATIC)
+  target_link_libraries(nghttp2_asio_static PUBLIC nghttp2_asio_object $<TARGET_OBJECTS:url-parser>)
+  set_target_properties(nghttp2_asio_static PROPERTIES ARCHIVE_OUTPUT_NAME nghttp2_asio${STATIC_LIB_SUFFIX})
+  install(TARGETS nghttp2_asio_static)
+endif()
 
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libnghttp2_asio.pc"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
