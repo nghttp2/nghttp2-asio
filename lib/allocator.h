@@ -31,6 +31,7 @@
 #  include <sys/uio.h>
 #endif // !_WIN32
 
+#include <algorithm>
 #include <cassert>
 #include <utility>
 
@@ -59,7 +60,8 @@ struct BlockAllocator {
       : retain(nullptr),
         head(nullptr),
         block_size(block_size),
-        isolation_threshold(std::min(block_size, isolation_threshold)) {
+        isolation_threshold(std::min<size_t>(block_size, isolation_threshold))
+  {
     assert(isolation_threshold <= block_size);
   }
 
@@ -109,7 +111,7 @@ struct BlockAllocator {
 
   void *alloc(size_t size) {
     if (size + sizeof(size_t) >= isolation_threshold) {
-      auto len = std::max(static_cast<size_t>(16), size);
+      auto len = std::max<size_t>(static_cast<size_t>(16), size);
       // We will store the allocated size in size_t field.
       auto mb = alloc_mem_block(len + sizeof(size_t));
       auto sp = reinterpret_cast<size_t *>(mb->begin);
@@ -158,7 +160,7 @@ struct BlockAllocator {
       return ptr;
     }
 
-    auto nalloclen = std::max(size + 1, alloclen * 2);
+    auto nalloclen = std::max<size_t>(size + 1, alloclen * 2);
 
     auto res = alloc(nalloclen);
     std::copy_n(p, alloclen, static_cast<uint8_t *>(res));

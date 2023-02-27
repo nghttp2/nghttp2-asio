@@ -38,11 +38,25 @@
 
 #include <nghttp2/nghttp2.h>
 
+#ifndef __has_declspec_attribute
+#  define __has_declspec_attribute(x) false
+#endif
+#if defined(_WIN32) || \
+    (__has_declspec_attribute(dllexport) && __has_declspec_attribute(dllimport))
+#  ifdef BUILDING_NGHTTP2_ASIO
+#    define NGHTTP2_ASIO_EXPORT __declspec(dllexport)
+#  else
+#    define NGHTTP2_ASIO_EXPORT __declspec(dllimport)
+#  endif
+#else
+#  define NGHTTP2_ASIO_EXPORT
+#endif
+
 namespace nghttp2 {
 
 namespace asio_http2 {
 
-struct header_value {
+struct NGHTTP2_ASIO_EXPORT header_value {
   // header field value
   std::string value;
   // true if the header field value is sensitive information, such as
@@ -55,9 +69,9 @@ struct header_value {
 // header fields.  The header field name must be lower-cased.
 using header_map = std::multimap<std::string, header_value>;
 
-const boost::system::error_category &nghttp2_category() noexcept;
+NGHTTP2_ASIO_EXPORT const boost::system::error_category &nghttp2_category() noexcept;
 
-struct uri_ref {
+struct NGHTTP2_ASIO_EXPORT uri_ref {
   std::string scheme;
   std::string host;
   // form after percent-encoding decoded
@@ -95,35 +109,36 @@ typedef std::function<ssize_t(uint8_t *buf, std::size_t len,
 
 // Convenient function to create function to read file denoted by
 // |path|.  This can be passed to response::end().
-generator_cb file_generator(const std::string &path);
+NGHTTP2_ASIO_EXPORT generator_cb file_generator(const std::string &path);
 
 // Like file_generator(const std::string&), but it takes opened file
 // descriptor.  The passed descriptor will be closed when returned
 // function object is destroyed.
-generator_cb file_generator_from_fd(int fd);
+NGHTTP2_ASIO_EXPORT generator_cb file_generator_from_fd(int fd);
 
 // Validates path so that it does not contain directory traversal
 // vector.  Returns true if path is safe.  The |path| must start with
 // "/" otherwise returns false.  This function should be called after
 // percent-decode was performed.
-bool check_path(const std::string &path);
+NGHTTP2_ASIO_EXPORT bool check_path(const std::string &path);
 
 // Performs percent-decode against string |s|.
-std::string percent_decode(const std::string &s);
+NGHTTP2_ASIO_EXPORT std::string percent_decode(const std::string &s);
 
 // Returns HTTP date representation of current posix time |t|.
-std::string http_date(int64_t t);
+NGHTTP2_ASIO_EXPORT std::string http_date(int64_t t);
 
 // Parses |uri| and extract scheme, host and service.  The service is
 // port component of URI (e.g., "8443") if available, otherwise it is
 // scheme (e.g., "https").
+NGHTTP2_ASIO_EXPORT
 boost::system::error_code host_service_from_uri(boost::system::error_code &ec,
                                                 std::string &scheme,
                                                 std::string &host,
                                                 std::string &service,
                                                 const std::string &uri);
 
-enum nghttp2_asio_error {
+enum NGHTTP2_ASIO_EXPORT nghttp2_asio_error {
   NGHTTP2_ASIO_ERR_NO_ERROR = 0,
   NGHTTP2_ASIO_ERR_TLS_NO_APP_PROTO_NEGOTIATED = 1,
 };
@@ -136,11 +151,11 @@ namespace boost {
 
 namespace system {
 
-template <> struct is_error_code_enum<nghttp2_error> {
+template <> struct NGHTTP2_ASIO_EXPORT is_error_code_enum<nghttp2_error> {
   BOOST_STATIC_CONSTANT(bool, value = true);
 };
 
-template <> struct is_error_code_enum<nghttp2::asio_http2::nghttp2_asio_error> {
+template <> struct NGHTTP2_ASIO_EXPORT is_error_code_enum<nghttp2::asio_http2::nghttp2_asio_error> {
   BOOST_STATIC_CONSTANT(bool, value = true);
 };
 

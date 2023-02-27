@@ -36,7 +36,7 @@ namespace server {
 class request_impl;
 class response_impl;
 
-class request {
+class NGHTTP2_ASIO_EXPORT request {
 public:
   // Application must not call this directly.
   request();
@@ -66,7 +66,7 @@ private:
   std::unique_ptr<request_impl> impl_;
 };
 
-class response {
+class NGHTTP2_ASIO_EXPORT response {
 public:
   // Application must not call this directly.
   response();
@@ -130,7 +130,7 @@ typedef std::function<void(const request &, const response &)> request_cb;
 
 class http2_impl;
 
-class http2 {
+class NGHTTP2_ASIO_EXPORT http2 {
 public:
   http2();
   ~http2();
@@ -224,17 +224,19 @@ private:
 // Configures |tls_context| for server use.  This function sets couple
 // of OpenSSL options (disables SSLv2 and SSLv3 and compression) and
 // enables ECDHE ciphers.  NPN callback is also configured.
+NGHTTP2_ASIO_EXPORT
 boost::system::error_code
 configure_tls_context_easy(boost::system::error_code &ec,
                            boost::asio::ssl::context &tls_context);
 
 // Returns request handler to do redirect to |uri| using
 // |status_code|.  The |uri| appears in "location" header field as is.
+NGHTTP2_ASIO_EXPORT
 request_cb redirect_handler(int status_code, std::string uri);
 
 // Returns request handler to reply with given |status_code| and HTML
 // including message about status code.
-request_cb status_handler(int status_code);
+NGHTTP2_ASIO_EXPORT request_cb status_handler(int status_code);
 
 } // namespace server
 
