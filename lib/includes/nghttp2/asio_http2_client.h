@@ -150,6 +150,11 @@ public:
   session(boost::asio::io_service &io_service, const std::string &host,
           const std::string &service);
 
+  session(boost::asio::io_service &io_service, const std::string &host,
+          const std::string &service,
+          connect_cb ccb,
+          error_cb ecb);
+
   // Same as previous but with pegged local endpoint
   session(boost::asio::io_service &io_service,
           const boost::asio::ip::tcp::endpoint &local_endpoint,
