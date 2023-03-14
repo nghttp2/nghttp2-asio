@@ -44,6 +44,17 @@ session::session(boost::asio::io_service &io_service, const std::string &host,
   impl_->start_resolve(host, service);
 }
 
+session::session(boost::asio::io_service &io_service, const std::string &host,
+    const std::string &service,
+    connect_cb ccb,
+    error_cb ecb)
+    : impl_(std::make_shared<session_tcp_impl>(
+          io_service, host, service, boost::posix_time::seconds(60))) {
+  impl_->on_connect(std::move(ccb));
+  impl_->on_error(std::move(ecb)); 
+  impl_->start_resolve(host, service);
+}
+
 session::session(boost::asio::io_service &io_service,
                  const boost::asio::ip::tcp::endpoint &local_endpoint,
                  const std::string &host, const std::string &service)
