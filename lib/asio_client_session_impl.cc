@@ -22,7 +22,7 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "asio_client_session_impl.h"
+#include "nghttp2/asio_client_session_impl.h"
 
 #include <iostream>
 
@@ -30,7 +30,7 @@
 #include "asio_client_request_impl.h"
 #include "asio_client_response_impl.h"
 #include "asio_common.h"
-#include "template.h"
+#include <nghttp2/template.h>
 #include "util.h"
 #include "http2.h"
 

@@ -22,14 +22,14 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "nghttp2_config.h"
+#include <nghttp2/nghttp2_config.h>
 
 #include <nghttp2/asio_http2_client.h>
 
 #include "asio_client_session_tcp_impl.h"
 #include "asio_client_session_tls_impl.h"
 #include "asio_common.h"
-#include "template.h"
+#include <nghttp2/template.h>
 
 namespace nghttp2 {
 namespace asio_http2 {
@@ -86,6 +86,15 @@ session::session(boost::asio::io_service &io_service,
                                                service, connect_timeout)) {
   impl_->start_resolve(host, service);
 }
+
+session::session(std::shared_ptr<session_impl> impl,
+                 const std::string &host,
+                 const std::string &service)
+    : impl_{impl}
+{
+  impl_->start_resolve(host, service);
+}
+
 
 session::~session() {}
 

@@ -25,7 +25,7 @@
 #ifndef ASIO_CLIENT_REQUEST_IMPL_H
 #define ASIO_CLIENT_REQUEST_IMPL_H
 
-#include "nghttp2_config.h"
+#include <nghttp2/nghttp2_config.h>
 
 #include <nghttp2/asio_http2_client.h>
 

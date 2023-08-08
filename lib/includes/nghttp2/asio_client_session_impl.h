@@ -25,13 +25,13 @@
 #ifndef ASIO_CLIENT_SESSION_IMPL_H
 #define ASIO_CLIENT_SESSION_IMPL_H
 
-#include "nghttp2_config.h"
+#include <nghttp2/nghttp2_config.h>
 
 #include <boost/array.hpp>
 
 #include <nghttp2/asio_http2_client.h>
 
-#include "template.h"
+#include <nghttp2/template.h>
 
 namespace nghttp2 {
 namespace asio_http2 {

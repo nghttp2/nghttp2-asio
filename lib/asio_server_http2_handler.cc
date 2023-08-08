@@ -33,7 +33,7 @@
 #include "asio_server_response_impl.h"
 #include "http2.h"
 #include "util.h"
-#include "template.h"
+#include <nghttp2/template.h>
 
 namespace nghttp2 {
 

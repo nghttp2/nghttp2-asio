@@ -22,13 +22,13 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "nghttp2_config.h"
+#include <nghttp2/nghttp2_config.h>
 
 #include <nghttp2/asio_http2_server.h>
 
 #include "asio_server_response_impl.h"
 
-#include "template.h"
+#include <nghttp2/template.h>
 
 namespace nghttp2 {
 namespace asio_http2 {

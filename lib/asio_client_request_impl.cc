@@ -25,8 +25,8 @@
 #include "asio_client_request_impl.h"
 
 #include "asio_client_stream.h"
-#include "asio_client_session_impl.h"
-#include "template.h"
+#include <nghttp2/asio_client_session_impl.h>
+#include <nghttp2/template.h>
 
 namespace nghttp2 {
 namespace asio_http2 {

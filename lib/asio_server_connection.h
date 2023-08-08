@@ -37,7 +37,7 @@
 #ifndef ASIO_SERVER_CONNECTION_H
 #define ASIO_SERVER_CONNECTION_H
 
-#include "nghttp2_config.h"
+#include <nghttp2/nghttp2_config.h>
 
 #include <memory>
 
@@ -49,7 +49,7 @@
 #include "asio_server_http2_handler.h"
 #include "asio_server_serve_mux.h"
 #include "util.h"
-#include "template.h"
+#include <nghttp2/template.h>
 
 #if BOOST_VERSION >= 107000
 #  define GET_IO_SERVICE(s)                                                    \

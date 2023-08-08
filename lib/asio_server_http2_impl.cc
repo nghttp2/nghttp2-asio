@@ -29,7 +29,7 @@
 #include "asio_server.h"
 #include "util.h"
 #include "tls.h"
-#include "template.h"
+#include <nghttp2/template.h>
 
 namespace nghttp2 {
 

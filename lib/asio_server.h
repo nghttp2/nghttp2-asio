@@ -37,7 +37,7 @@
 #ifndef ASIO_SERVER_H
 #define ASIO_SERVER_H
 
-#include "nghttp2_config.h"
+#include <nghttp2/nghttp2_config.h>
 
 #include <string>
 #include <vector>

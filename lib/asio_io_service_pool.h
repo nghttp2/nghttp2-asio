@@ -37,7 +37,7 @@
 #ifndef ASIO_IO_SERVICE_POOL_H
 #define ASIO_IO_SERVICE_POOL_H
 
-#include "nghttp2_config.h"
+#include <nghttp2/nghttp2_config.h>
 
 #include <vector>
 #include <memory>
