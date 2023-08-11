@@ -87,12 +87,9 @@ session::session(boost::asio::io_service &io_service,
   impl_->start_resolve(host, service);
 }
 
-session::session(std::shared_ptr<session_impl> impl,
-                 const std::string &host,
-                 const std::string &service)
+session::session(std::shared_ptr<session_impl> impl)
     : impl_{impl}
 {
-  impl_->start_resolve(host, service);
 }
 
 

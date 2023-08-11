@@ -183,9 +183,7 @@ public:
           const std::string &service,
           const boost::posix_time::time_duration &connect_timeout);
 
-  session(std::shared_ptr<session_impl> impl,
-          const std::string &host,
-          const std::string &service);
+  session(std::shared_ptr<session_impl> impl);
 
   ~session();
 
