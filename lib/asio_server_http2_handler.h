@@ -25,7 +25,7 @@
 #ifndef ASIO_SERVER_HTTP2_HANDLER_H
 #define ASIO_SERVER_HTTP2_HANDLER_H
 
-#include "nghttp2_config.h"
+#include <nghttp2/nghttp2_config.h>
 
 #include <map>
 #include <functional>

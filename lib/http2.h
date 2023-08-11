@@ -25,7 +25,7 @@
 #ifndef HTTP2_H
 #define HTTP2_H
 
-#include "nghttp2_config.h"
+#include <nghttp2/nghttp2_config.h>
 
 #include <cstdio>
 #include <cstring>
@@ -38,7 +38,7 @@
 #include "url-parser/url_parser.h"
 
 #include "util.h"
-#include "template.h"
+#include <nghttp2/template.h>
 #include "allocator.h"
 
 namespace nghttp2 {

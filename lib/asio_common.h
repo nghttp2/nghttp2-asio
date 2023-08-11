@@ -25,7 +25,7 @@
 #ifndef ASIO_COMMON_H
 #define ASIO_COMMON_H
 
-#include "nghttp2_config.h"
+#include <nghttp2/nghttp2_config.h>
 
 #include <string>
 

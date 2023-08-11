@@ -25,7 +25,7 @@
 #ifndef ALLOCATOR_H
 #define ALLOCATOR_H
 
-#include "nghttp2_config.h"
+#include <nghttp2/nghttp2_config.h>
 
 #ifndef _WIN32
 #  include <sys/uio.h>
@@ -34,7 +34,7 @@
 #include <cassert>
 #include <utility>
 
-#include "template.h"
+#include <nghttp2/template.h>
 
 namespace nghttp2 {
 

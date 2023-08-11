@@ -25,7 +25,7 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#include "nghttp2_config.h"
+#include <nghttp2/nghttp2_config.h>
 
 #ifdef HAVE_UNISTD_H
 #  include <unistd.h>
@@ -49,7 +49,7 @@
 
 #include "url-parser/url_parser.h"
 
-#include "template.h"
+#include <nghttp2/template.h>
 #include "network.h"
 #include "allocator.h"
 

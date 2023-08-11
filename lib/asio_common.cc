@@ -28,7 +28,7 @@
 #include <memory>
 
 #include "util.h"
-#include "template.h"
+#include <nghttp2/template.h>
 #include "http2.h"
 
 namespace nghttp2 {

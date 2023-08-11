@@ -25,7 +25,7 @@
 #ifndef ASIO_CLIENT_SESSION_TCP_IMPL_H
 #define ASIO_CLIENT_SESSION_TCP_IMPL_H
 
-#include "asio_client_session_impl.h"
+#include <nghttp2/asio_client_session_impl.h>
 
 #include <nghttp2/asio_http2_client.h>
 

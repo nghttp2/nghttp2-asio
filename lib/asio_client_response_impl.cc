@@ -24,7 +24,7 @@
  */
 #include "asio_client_response_impl.h"
 
-#include "template.h"
+#include <nghttp2/template.h>
 
 namespace nghttp2 {
 namespace asio_http2 {

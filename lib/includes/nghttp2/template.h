@@ -25,7 +25,7 @@
 #ifndef TEMPLATE_H
 #define TEMPLATE_H
 
-#include "nghttp2_config.h"
+#include <nghttp2/nghttp2_config.h>
 
 #include <cstring>
 #include <cstdio>

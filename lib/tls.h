@@ -25,7 +25,7 @@
 #ifndef TLS_H
 #define TLS_H
 
-#include "nghttp2_config.h"
+#include <nghttp2/nghttp2_config.h>
 
 namespace nghttp2 {
 
