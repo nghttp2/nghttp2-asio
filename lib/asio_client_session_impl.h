@@ -49,7 +49,7 @@ public:
 
   void start_resolve(const std::string &host, const std::string &service);
 
-  void connected(tcp::resolver::iterator endpoint_it);
+  void connected(tcp::resolver::results_type::iterator endpoint_it);
   void not_connected(const boost::system::error_code &ec);
 
   void on_connect(connect_cb cb);
@@ -72,7 +72,7 @@ public:
                         const std::string &method, const std::string &uri,
                         generator_cb cb, header_map h, priority_spec spec);
 
-  virtual void start_connect(tcp::resolver::iterator endpoint_it) = 0;
+  virtual void start_connect(tcp::resolver::results_type::iterator endpoint_it) = 0;
   virtual tcp::socket &socket() = 0;
   virtual void read_socket(
       std::function<void(const boost::system::error_code &ec, std::size_t n)>

@@ -48,7 +48,7 @@ session_tcp_impl::session_tcp_impl(
 
 session_tcp_impl::~session_tcp_impl() {}
 
-void session_tcp_impl::start_connect(tcp::resolver::iterator endpoint_it) {
+void session_tcp_impl::start_connect(tcp::resolver::results_type::iterator endpoint_it) {
   auto self = shared_from_this();
   socket_.async_connect(
       *endpoint_it, [self, endpoint_it](const boost::system::error_code &ec) {

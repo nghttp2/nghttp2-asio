@@ -46,7 +46,7 @@ public:
                    const boost::posix_time::time_duration &connect_timeout);
   virtual ~session_tcp_impl();
 
-  virtual void start_connect(tcp::resolver::iterator endpoint_it);
+  virtual void start_connect(tcp::resolver::results_type::iterator endpoint_it);
   virtual tcp::socket &socket();
   virtual void read_socket(
       std::function<void(const boost::system::error_code &ec, std::size_t n)>

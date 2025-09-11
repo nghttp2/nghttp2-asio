@@ -38,6 +38,61 @@
 
 #include <nghttp2/nghttp2.h>
 
+namespace boost {
+  namespace asio {
+    #if BOOST_VERSION >= 108700
+      using io_service = boost::asio::io_context;
+      using const_buffers_1 = boost::asio::const_buffer;
+      using mutable_buffers_1 = boost::asio::mutable_buffer;
+      using io_context_work = boost::asio::executor_work_guard<boost::asio::io_context::executor_type>;
+      /// Cast a non-modifiable buffer to a specified pointer to POD type.
+      template <typename PointerToPodType>
+      inline PointerToPodType buffer_cast(const mutable_buffer& b) noexcept
+      {
+        return static_cast<PointerToPodType>(b.data());
+      }
+
+      /// Cast a non-modifiable buffer to a specified pointer to POD type.
+      template <typename PointerToPodType>
+      inline PointerToPodType buffer_cast(const const_buffer& b) noexcept
+      {
+        return static_cast<PointerToPodType>(b.data());
+      }
+
+      template <typename Protocol, typename Executor, typename Iterator,
+          BOOST_ASIO_COMPLETION_TOKEN_FOR(void (boost::system::error_code,
+            Iterator)) IteratorConnectToken = default_completion_token_t<Executor>>
+      inline auto async_connect(basic_socket<Protocol, Executor>& s, Iterator begin,
+          IteratorConnectToken&& token = default_completion_token_t<Executor>(),
+          constraint_t<
+            !is_endpoint_sequence<Iterator>::value
+          > = 0,
+          constraint_t<
+            !is_same<Iterator, decay_t<IteratorConnectToken>>::value
+          > = 0,
+          constraint_t<
+            !is_connect_condition<IteratorConnectToken, Iterator>::value
+          > = 0)
+        -> decltype(
+          async_initiate<IteratorConnectToken,
+            void (boost::system::error_code, Iterator)>(
+              declval<detail::initiate_async_iterator_connect<Protocol, Executor>>(),
+              token, begin, Iterator(),
+              declval<detail::default_connect_condition>()))
+      {
+        return async_initiate<IteratorConnectToken,
+          void (boost::system::error_code, Iterator)>(
+            detail::initiate_async_iterator_connect<Protocol, Executor>(s),
+            token, begin, Iterator(), detail::default_connect_condition());
+      }
+      #define NGHTTP2_ASIO_IO_CONTEXT_WORK_PARAM(IO_SERVICE) (IO_SERVICE)->get_executor()
+    #else
+      using io_context_work = boost::asio::io_service::work;
+      #define NGHTTP2_ASIO_IO_CONTEXT_WORK_PARAM(IO_SERVICE) *(IO_SERVICE)
+    #endif
+  }
+}
+
 namespace nghttp2 {
 
 namespace asio_http2 {

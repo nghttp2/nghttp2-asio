@@ -67,7 +67,7 @@ class request;
 using response_cb = std::function<void(const response &)>;
 using request_cb = std::function<void(const request &)>;
 using connect_cb =
-    std::function<void(boost::asio::ip::tcp::resolver::iterator)>;
+    std::function<void(boost::asio::ip::tcp::resolver::results_type::iterator)>;
 
 class request_impl;
 

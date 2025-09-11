@@ -82,7 +82,7 @@ private:
   std::vector<std::shared_ptr<boost::asio::io_service>> io_services_;
 
   /// The work that keeps the io_services running.
-  std::vector<std::shared_ptr<boost::asio::io_service::work>> work_;
+  std::vector<std::shared_ptr<boost::asio::io_context_work>> work_;
 
   /// The next io_service to use for a connection.
   std::size_t next_io_service_;

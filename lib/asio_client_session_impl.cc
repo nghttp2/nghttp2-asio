@@ -72,15 +72,15 @@ void session_impl::start_resolve(const std::string &host,
 
   auto self = shared_from_this();
 
-  resolver_.async_resolve({host, service},
+  resolver_.async_resolve(host, service,
                           [self](const boost::system::error_code &ec,
-                                 tcp::resolver::iterator endpoint_it) {
+                                 tcp::resolver::results_type endpoints) {
                             if (ec) {
                               self->not_connected(ec);
                               return;
                             }
 
-                            self->start_connect(endpoint_it);
+                            self->start_connect(endpoints.begin());
                           });
 
   deadline_.async_wait(std::bind(&session_impl::handle_deadline, self));
@@ -124,7 +124,7 @@ void session_impl::handle_ping(const boost::system::error_code &ec) {
   start_ping();
 }
 
-void session_impl::connected(tcp::resolver::iterator endpoint_it) {
+void session_impl::connected(tcp::resolver::results_type::iterator endpoint_it) {
   if (!setup_session()) {
     return;
   }

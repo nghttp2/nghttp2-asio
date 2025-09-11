@@ -37,7 +37,7 @@ session_tls_impl::session_tls_impl(
   // this callback setting is no effect is
   // ssl::context::set_verify_mode(boost::asio::ssl::verify_peer) is
   // not used, which is what we want.
-  socket_.set_verify_callback(boost::asio::ssl::rfc2818_verification(host));
+  socket_.set_verify_callback(boost::asio::ssl::host_name_verification(host));
   auto ssl = socket_.native_handle();
   if (!util::numeric_host(host.c_str())) {
     SSL_set_tlsext_host_name(ssl, host.c_str());
@@ -46,12 +46,12 @@ session_tls_impl::session_tls_impl(
 
 session_tls_impl::~session_tls_impl() {}
 
-void session_tls_impl::start_connect(tcp::resolver::iterator endpoint_it) {
+void session_tls_impl::start_connect(tcp::resolver::results_type::iterator endpoint_it) {
   auto self = std::static_pointer_cast<session_tls_impl>(shared_from_this());
   boost::asio::async_connect(
       socket(), endpoint_it,
       [self](const boost::system::error_code &ec,
-             tcp::resolver::iterator endpoint_it) {
+             tcp::resolver::results_type::iterator it) {
         if (self->stopped()) {
           return;
         }
@@ -60,10 +60,9 @@ void session_tls_impl::start_connect(tcp::resolver::iterator endpoint_it) {
           self->not_connected(ec);
           return;
         }
-
         self->socket_.async_handshake(
             boost::asio::ssl::stream_base::client,
-            [self, endpoint_it](const boost::system::error_code &ec) {
+            [self, it](const boost::system::error_code &ec) {
               if (self->stopped()) {
                 return;
               }
@@ -79,7 +78,7 @@ void session_tls_impl::start_connect(tcp::resolver::iterator endpoint_it) {
                 return;
               }
 
-              self->connected(endpoint_it);
+              self->connected(it);
             });
       });
 }

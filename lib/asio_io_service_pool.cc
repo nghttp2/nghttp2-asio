@@ -48,7 +48,7 @@ io_service_pool::io_service_pool(std::size_t pool_size) : next_io_service_(0) {
   // exit until they are explicitly stopped.
   for (std::size_t i = 0; i < pool_size; ++i) {
     auto io_service = std::make_shared<boost::asio::io_service>();
-    auto work = std::make_shared<boost::asio::io_service::work>(*io_service);
+    auto work = std::make_shared<boost::asio::io_context_work>(NGHTTP2_ASIO_IO_CONTEXT_WORK_PARAM(io_service));
     io_services_.push_back(io_service);
     work_.push_back(work);
   }
