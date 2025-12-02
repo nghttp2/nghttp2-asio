@@ -30,4 +30,4 @@ Description: HTTP/2 C++ library
 URL: https://github.com/tatsuhiro-t/nghttp2
 Version: @VERSION@
 Libs: -L${libdir} -lnghttp2_asio
-Cflags: -I${includedir}
+Cflags: -I${includedir}@boost_cflags@
