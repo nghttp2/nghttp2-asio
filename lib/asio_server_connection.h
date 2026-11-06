@@ -97,10 +97,19 @@ public:
   void start() {
     boost::system::error_code ec;
 
+    // The handler outlives this connection when a write signal is still
+    // queued on the executor after stop(). A weak reference lets that late
+    // write become a no-op; a raw `this` would call do_write() on a destroyed
+    // connection, and a strong reference would form a cycle through handler_.
     handler_ = std::make_shared<http2_handler>(
         socket_.lowest_layer().get_executor(),
         socket_.lowest_layer().remote_endpoint(ec),
-        [this]() { do_write(); }, mux_);
+        [weak_self = std::weak_ptr<connection>(this->shared_from_this())]() {
+          if (auto self = weak_self.lock()) {
+            self->do_write();
+          }
+        },
+        mux_);
     handler_->peer_certificate(verified_peer_certificate(socket_));
     if (handler_->start() != 0) {
       stop();

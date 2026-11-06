@@ -109,6 +109,11 @@ private:
   std::vector<std::shared_ptr<boost::asio::io_context>> external_io_contexts_;
   std::mutex connection_closers_mutex_;
   std::vector<std::function<void()>> connection_closers_;
+  // Serializes is_open(), async_accept() and close() on each acceptor. Accept
+  // completions re-arm from per-connection strands while stop_listening()
+  // runs on whichever thread calls stop(); an acceptor object is not safe to
+  // use from two threads at once.
+  std::mutex acceptors_mutex_;
   std::vector<tcp::acceptor> acceptors_;
   std::unique_ptr<boost::asio::ssl::context> ssl_ctx_;
 

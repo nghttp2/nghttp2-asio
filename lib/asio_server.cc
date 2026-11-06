@@ -166,8 +166,11 @@ boost::system::error_code server::bind_and_listen(boost::system::error_code &ec,
 void server::start_accept(boost::asio::ssl::context &tls_context,
                           tcp::acceptor &acceptor, serve_mux &mux) {
 
-  if (!acceptor.is_open()) {
-    return;
+  {
+    std::lock_guard<std::mutex> lock(acceptors_mutex_);
+    if (!acceptor.is_open()) {
+      return;
+    }
   }
 
   // Each connection gets its own strand over get_io_context()'s executor.
@@ -207,6 +210,10 @@ void server::start_accept(boost::asio::ssl::context &tls_context,
   // is meant to confine, so bind_executor it onto conn_strand explicitly.
   // The trailing start_accept() re-arm call is unrelated to this
   // connection but harmless to also run on conn_strand once.
+  std::lock_guard<std::mutex> accept_lock(acceptors_mutex_);
+  if (!acceptor.is_open()) {
+    return;
+  }
   acceptor.async_accept(
       new_connection->socket().lowest_layer(),
       boost::asio::bind_executor(
@@ -219,9 +226,7 @@ void server::start_accept(boost::asio::ssl::context &tls_context,
                   tcp::no_delay(true), option_ec);
               if (option_ec) {
                 new_connection->stop();
-                if (acceptor.is_open()) {
-                  start_accept(tls_context, acceptor, mux);
-                }
+                start_accept(tls_context, acceptor, mux);
                 return;
               }
               new_connection->start_tls_handshake_deadline();
@@ -248,8 +253,11 @@ void server::start_accept(boost::asio::ssl::context &tls_context,
 
 void server::start_accept(tcp::acceptor &acceptor, serve_mux &mux) {
 
-  if (!acceptor.is_open()) {
-    return;
+  {
+    std::lock_guard<std::mutex> lock(acceptors_mutex_);
+    if (!acceptor.is_open()) {
+      return;
+    }
   }
 
   // See the TLS overload above for why this is a per-connection strand
@@ -270,6 +278,10 @@ void server::start_accept(tcp::acceptor &acceptor, serve_mux &mux) {
   });
 
   // See the TLS overload above for why this binds conn_strand explicitly.
+  std::lock_guard<std::mutex> accept_lock(acceptors_mutex_);
+  if (!acceptor.is_open()) {
+    return;
+  }
   acceptor.async_accept(
       new_connection->socket(),
       boost::asio::bind_executor(
@@ -282,21 +294,18 @@ void server::start_accept(tcp::acceptor &acceptor, serve_mux &mux) {
                                                   option_ec);
               if (option_ec) {
                 new_connection->stop();
-                if (acceptor.is_open()) {
-                  start_accept(acceptor, mux);
-                }
+                start_accept(acceptor, mux);
                 return;
               }
               new_connection->start_read_deadline();
               new_connection->start();
             }
-            if (acceptor.is_open()) {
-              start_accept(acceptor, mux);
-            }
+            start_accept(acceptor, mux);
           }));
 }
 
 void server::stop_listening() {
+  std::lock_guard<std::mutex> lock(acceptors_mutex_);
   for (auto &acceptor : acceptors_) {
     acceptor.close();
   }
