@@ -40,11 +40,17 @@ response::~response() {}
 
 void response::on_data(data_cb cb) const { impl_->on_data(std::move(cb)); }
 
+void response::on_trailers(trailers_cb cb) const {
+  impl_->on_trailers(std::move(cb));
+}
+
 int response::status_code() const { return impl_->status_code(); }
 
 int64_t response::content_length() const { return impl_->content_length(); }
 
 const header_map &response::header() const { return impl_->header(); }
+
+const header_map &response::trailer() const { return impl_->trailer(); }
 
 response_impl &response::impl() const { return *impl_; }
 

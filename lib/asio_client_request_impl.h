@@ -62,6 +62,8 @@ public:
 
   void resume();
 
+  int32_t stream_id() const;
+
   void header(header_map h);
   header_map &header();
   const header_map &header() const;

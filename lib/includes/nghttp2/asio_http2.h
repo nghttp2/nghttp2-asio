@@ -137,11 +137,11 @@ namespace boost {
 namespace system {
 
 template <> struct is_error_code_enum<nghttp2_error> {
-  BOOST_STATIC_CONSTANT(bool, value = true);
+  static constexpr bool value = true;
 };
 
 template <> struct is_error_code_enum<nghttp2::asio_http2::nghttp2_asio_error> {
-  BOOST_STATIC_CONSTANT(bool, value = true);
+  static constexpr bool value = true;
 };
 
 } // namespace system

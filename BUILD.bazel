@@ -1,0 +1,56 @@
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+licenses(["notice"])
+
+exports_files(["COPYING"])
+
+cc_library(
+    name = "url_parser",
+    srcs = ["third-party/url-parser/url_parser.c"],
+    hdrs = ["third-party/url-parser/url_parser.h"],
+    includes = ["third-party"],
+)
+
+cc_library(
+    name = "timegm",
+    srcs = ["lib/timegm.c"],
+    hdrs = ["lib/timegm.h"],
+    local_defines = [
+        "HAVE_TIME_H",
+        "SIZEOF_TIME_T=8",
+    ],
+)
+
+cc_library(
+    name = "nghttp2_asio",
+    srcs = glob([
+        "lib/*.cc",
+        "lib/*.h",
+    ], exclude = ["lib/timegm.h"]),
+    hdrs = glob(["lib/includes/**/*.h"]),
+    local_defines = [
+        "HAVE_ARPA_INET_H",
+        "HAVE_FCNTL_H",
+        "HAVE_NETDB_H",
+        "HAVE_NETINET_IN_H",
+        "HAVE_SYS_SOCKET_H",
+        "HAVE_TIME_H",
+        "HAVE_UNISTD_H",
+        "SIZEOF_TIME_T=8",
+    ],
+    strip_include_prefix = "lib/includes",
+    target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        ":timegm",
+        ":url_parser",
+        "@boost.asio//:boost.asio",
+        "@boost.thread",
+        "@nghttp2",
+        "@openssl//:ssl",
+    ],
+)

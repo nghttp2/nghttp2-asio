@@ -38,16 +38,29 @@ namespace asio_http2 {
 namespace server {
 
 http2_impl::http2_impl()
-    : num_threads_(1),
+    : external_io_context_(nullptr),
+      num_threads_(1),
       backlog_(-1),
-      tls_handshake_timeout_(boost::posix_time::seconds(60)),
-      read_timeout_(boost::posix_time::seconds(60)) {}
+      tls_handshake_timeout_(std::chrono::seconds(60)),
+      read_timeout_(std::chrono::seconds(60)) {}
+
+http2_impl::http2_impl(boost::asio::io_context &io_context)
+    : external_io_context_(&io_context),
+      num_threads_(1),
+      backlog_(-1),
+      tls_handshake_timeout_(std::chrono::seconds(60)),
+      read_timeout_(std::chrono::seconds(60)) {}
 
 boost::system::error_code http2_impl::listen_and_serve(
     boost::system::error_code &ec, boost::asio::ssl::context *tls_context,
     const std::string &address, const std::string &port, bool asynchronous) {
-  server_.reset(
-      new server(num_threads_, tls_handshake_timeout_, read_timeout_));
+  if (external_io_context_) {
+    server_.reset(new server(*external_io_context_, tls_handshake_timeout_,
+                             read_timeout_));
+  } else {
+    server_.reset(new server(num_threads_, tls_handshake_timeout_,
+                             read_timeout_));
+  }
   return server_->listen_and_serve(ec, tls_context, address, port, backlog_,
                                    mux_, asynchronous);
 }
@@ -56,12 +69,11 @@ void http2_impl::num_threads(size_t num_threads) { num_threads_ = num_threads; }
 
 void http2_impl::backlog(int backlog) { backlog_ = backlog; }
 
-void http2_impl::tls_handshake_timeout(
-    const boost::posix_time::time_duration &t) {
+void http2_impl::tls_handshake_timeout(std::chrono::nanoseconds t) {
   tls_handshake_timeout_ = t;
 }
 
-void http2_impl::read_timeout(const boost::posix_time::time_duration &t) {
+void http2_impl::read_timeout(std::chrono::nanoseconds t) {
   read_timeout_ = t;
 }
 
@@ -69,13 +81,15 @@ bool http2_impl::handle(std::string pattern, request_cb cb) {
   return mux_.handle(std::move(pattern), std::move(cb));
 }
 
+void http2_impl::stop_listening() { server_->stop_listening(); }
+
 void http2_impl::stop() { return server_->stop(); }
 
 void http2_impl::join() { return server_->join(); }
 
-const std::vector<std::shared_ptr<boost::asio::io_service>> &
-http2_impl::io_services() const {
-  return server_->io_services();
+const std::vector<std::shared_ptr<boost::asio::io_context>> &
+http2_impl::io_contexts() const {
+  return server_->io_contexts();
 }
 
 std::vector<int> http2_impl::ports() const { return server_->ports(); }

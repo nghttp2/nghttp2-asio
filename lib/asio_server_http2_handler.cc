@@ -145,6 +145,7 @@ int on_frame_recv_callback(nghttp2_session *session, const nghttp2_frame *frame,
 
     auto &req = strm->request().impl();
     req.remote_endpoint(handler->remote_endpoint());
+    req.tls_peer_certificate(handler->peer_certificate());
 
     handler->call_on_request(*strm);
 
@@ -234,13 +235,14 @@ int on_frame_not_send_callback(nghttp2_session *session,
 }
 } // namespace
 
-http2_handler::http2_handler(boost::asio::io_service &io_service,
+http2_handler::http2_handler(const boost::asio::any_io_executor &executor,
                              boost::asio::ip::tcp::endpoint ep,
                              connection_write writefun, serve_mux &mux)
     : writefun_(writefun),
       mux_(mux),
-      io_service_(io_service),
+      executor_(executor),
       remote_ep_(ep),
+      peer_cert_(nullptr),
       session_(nullptr),
       buf_(nullptr),
       buflen_(0),
@@ -256,6 +258,7 @@ http2_handler::~http2_handler() {
   }
 
   nghttp2_session_del(session_);
+  X509_free(peer_cert_);
 }
 
 const std::string &http2_handler::http_date() {
@@ -415,7 +418,7 @@ void http2_handler::signal_write() {
   if (!inside_callback_ && !write_signaled_) {
     write_signaled_ = true;
     auto self = shared_from_this();
-    io_service_.post([self]() { self->initiate_write(); });
+    boost::asio::post(executor_, [self]() { self->initiate_write(); });
   }
 }
 
@@ -478,11 +481,24 @@ response *http2_handler::push_promise(boost::system::error_code &ec,
   return &promised_strm->response();
 }
 
-boost::asio::io_service &http2_handler::io_service() { return io_service_; }
+boost::asio::io_context &http2_handler::io_context() {
+  return static_cast<boost::asio::io_context &>(executor_.context());
+}
+
+const boost::asio::any_io_executor &http2_handler::get_executor() const {
+  return executor_;
+}
 
 const boost::asio::ip::tcp::endpoint &http2_handler::remote_endpoint() {
   return remote_ep_;
 }
+
+void http2_handler::peer_certificate(X509 *cert) {
+  X509_free(peer_cert_);
+  peer_cert_ = cert;
+}
+
+X509 *http2_handler::peer_certificate() const { return peer_cert_; }
 
 callback_guard::callback_guard(http2_handler &h) : handler(h) {
   handler.enter_callback();

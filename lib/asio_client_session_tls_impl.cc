@@ -30,14 +30,11 @@ namespace asio_http2 {
 namespace client {
 
 session_tls_impl::session_tls_impl(
-    boost::asio::io_service &io_service, boost::asio::ssl::context &tls_ctx,
+    const boost::asio::any_io_executor &ex, boost::asio::ssl::context &tls_ctx,
     const std::string &host, const std::string &service,
-    const boost::posix_time::time_duration &connect_timeout)
-    : session_impl(io_service, connect_timeout), socket_(io_service, tls_ctx) {
-  // this callback setting is no effect is
-  // ssl::context::set_verify_mode(boost::asio::ssl::verify_peer) is
-  // not used, which is what we want.
-  socket_.set_verify_callback(boost::asio::ssl::rfc2818_verification(host));
+    std::chrono::nanoseconds connect_timeout)
+    : session_impl(ex, connect_timeout), socket_(ex, tls_ctx) {
+  socket_.set_verify_callback(boost::asio::ssl::host_name_verification(host));
   auto ssl = socket_.native_handle();
   if (!util::numeric_host(host.c_str())) {
     SSL_set_tlsext_host_name(ssl, host.c_str());
@@ -46,12 +43,11 @@ session_tls_impl::session_tls_impl(
 
 session_tls_impl::~session_tls_impl() {}
 
-void session_tls_impl::start_connect(tcp::resolver::iterator endpoint_it) {
+void session_tls_impl::start_connect(tcp::resolver::results_type results) {
   auto self = std::static_pointer_cast<session_tls_impl>(shared_from_this());
   boost::asio::async_connect(
-      socket(), endpoint_it,
-      [self](const boost::system::error_code &ec,
-             tcp::resolver::iterator endpoint_it) {
+      socket_.next_layer(), results,
+      [self](const boost::system::error_code &ec, const tcp::endpoint &ep) {
         if (self->stopped()) {
           return;
         }
@@ -63,7 +59,7 @@ void session_tls_impl::start_connect(tcp::resolver::iterator endpoint_it) {
 
         self->socket_.async_handshake(
             boost::asio::ssl::stream_base::client,
-            [self, endpoint_it](const boost::system::error_code &ec) {
+            [self, ep](const boost::system::error_code &ec) {
               if (self->stopped()) {
                 return;
               }
@@ -79,7 +75,7 @@ void session_tls_impl::start_connect(tcp::resolver::iterator endpoint_it) {
                 return;
               }
 
-              self->connected(endpoint_it);
+              self->connected(ep);
             });
       });
 }

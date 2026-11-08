@@ -38,16 +38,15 @@ namespace nghttp2 {
 namespace asio_http2 {
 namespace client {
 
-session_impl::session_impl(
-    boost::asio::io_service &io_service,
-    const boost::posix_time::time_duration &connect_timeout)
+session_impl::session_impl(const boost::asio::any_io_executor &ex,
+                           std::chrono::nanoseconds connect_timeout)
     : wblen_(0),
-      io_service_(io_service),
-      resolver_(io_service),
-      deadline_(io_service),
+      executor_(ex),
+      resolver_(ex),
+      deadline_(ex),
       connect_timeout_(connect_timeout),
-      read_timeout_(boost::posix_time::seconds(60)),
-      ping_(io_service),
+      read_timeout_(std::chrono::seconds(60)),
+      ping_(ex),
       session_(nullptr),
       data_pending_(nullptr),
       data_pendinglen_(0),
@@ -56,7 +55,6 @@ session_impl::session_impl(
       stopped_(false) {}
 
 session_impl::~session_impl() {
-  // finish up all active stream
   for (auto &p : streams_) {
     auto &strm = p.second;
     auto &req = strm->request().impl();
@@ -68,22 +66,24 @@ session_impl::~session_impl() {
 
 void session_impl::start_resolve(const std::string &host,
                                  const std::string &service) {
-  deadline_.expires_from_now(connect_timeout_);
+  deadline_.expires_after(connect_timeout_);
 
   auto self = shared_from_this();
 
-  resolver_.async_resolve({host, service},
+  resolver_.async_resolve(host, service,
                           [self](const boost::system::error_code &ec,
-                                 tcp::resolver::iterator endpoint_it) {
+                                 tcp::resolver::results_type results) {
                             if (ec) {
                               self->not_connected(ec);
                               return;
                             }
 
-                            self->start_connect(endpoint_it);
+                            self->start_connect(std::move(results));
                           });
 
-  deadline_.async_wait(std::bind(&session_impl::handle_deadline, self));
+  deadline_.async_wait([self](const boost::system::error_code &) {
+    self->handle_deadline();
+  });
 }
 
 void session_impl::handle_deadline() {
@@ -91,24 +91,22 @@ void session_impl::handle_deadline() {
     return;
   }
 
-  if (deadline_.expires_at() <=
-      boost::asio::deadline_timer::traits_type::now()) {
+  if (deadline_.expiry() <= boost::asio::steady_timer::clock_type::now()) {
     call_error_cb(boost::asio::error::timed_out);
     stop();
-    deadline_.expires_at(boost::posix_time::pos_infin);
     return;
   }
 
-  deadline_.async_wait(
-      std::bind(&session_impl::handle_deadline, this->shared_from_this()));
+  deadline_.async_wait([self = shared_from_this()](const boost::system::error_code &) {
+    self->handle_deadline();
+  });
 }
 
-void handle_ping2(const boost::system::error_code &ec, int) {}
-
 void session_impl::start_ping() {
-  ping_.expires_from_now(boost::posix_time::seconds(30));
-  ping_.async_wait(std::bind(&session_impl::handle_ping, shared_from_this(),
-                             std::placeholders::_1));
+  ping_.expires_after(std::chrono::seconds(30));
+  ping_.async_wait([self = shared_from_this()](const boost::system::error_code &ec) {
+    self->handle_ping(ec);
+  });
 }
 
 void session_impl::handle_ping(const boost::system::error_code &ec) {
@@ -124,7 +122,7 @@ void session_impl::handle_ping(const boost::system::error_code &ec) {
   start_ping();
 }
 
-void session_impl::connected(tcp::resolver::iterator endpoint_it) {
+void session_impl::connected(tcp::endpoint endpoint) {
   if (!setup_session()) {
     return;
   }
@@ -138,7 +136,7 @@ void session_impl::connected(tcp::resolver::iterator endpoint_it) {
 
   auto &connect_cb = on_connect();
   if (connect_cb) {
-    connect_cb(endpoint_it);
+    connect_cb(endpoint);
   }
 }
 
@@ -151,9 +149,24 @@ void session_impl::on_connect(connect_cb cb) { connect_cb_ = std::move(cb); }
 
 void session_impl::on_error(error_cb cb) { error_cb_ = std::move(cb); }
 
+void session_impl::on_goaway(goaway_cb cb) { goaway_cb_ = std::move(cb); }
+
 const connect_cb &session_impl::on_connect() const { return connect_cb_; }
 
 const error_cb &session_impl::on_error() const { return error_cb_; }
+
+const goaway_cb &session_impl::on_goaway() const { return goaway_cb_; }
+
+void session_impl::call_on_goaway(uint32_t error_code,
+                                  int32_t last_stream_id) {
+  if (stopped_) {
+    return;
+  }
+  if (!goaway_cb_) {
+    return;
+  }
+  goaway_cb_(error_code, last_stream_id);
+}
 
 void session_impl::call_error_cb(const boost::system::error_code &ec) {
   if (stopped_) {
@@ -195,9 +208,26 @@ int on_header_callback(nghttp2_session *session, const nghttp2_frame *frame,
       return 0;
     }
 
-    // ignore trailers
-    if (frame->headers.cat == NGHTTP2_HCAT_HEADERS &&
-        !strm->expect_final_response()) {
+    if (frame->headers.cat == NGHTTP2_HCAT_HEADERS) {
+      if (strm->expect_final_response()) {
+        return 0;
+      }
+
+      if (strm->response().impl().trailer_buffer_size() + namelen + valuelen >
+          64_k) {
+        nghttp2_submit_rst_stream(session, NGHTTP2_FLAG_NONE,
+                                  frame->hd.stream_id, NGHTTP2_INTERNAL_ERROR);
+        break;
+      }
+      strm->response().impl().update_trailer_buffer_size(namelen + valuelen);
+      strm->response().impl().trailer().emplace(
+          std::string(name, name + namelen),
+          header_value{std::string(value, value + valuelen),
+                       (flags & NGHTTP2_NV_FLAG_NO_INDEX) != 0});
+      break;
+    }
+
+    if (strm->expect_final_response()) {
       return 0;
     }
 
@@ -288,7 +318,7 @@ int on_frame_recv_callback(nghttp2_session *session, const nghttp2_frame *frame,
       return 0;
     }
     if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM) {
-      strm->response().impl().call_on_data(nullptr, 0);
+      strm->response().impl().deliver_body_eof();
     }
     break;
   }
@@ -297,10 +327,14 @@ int on_frame_recv_callback(nghttp2_session *session, const nghttp2_frame *frame,
       return 0;
     }
 
-    // ignore trailers
-    if (frame->headers.cat == NGHTTP2_HCAT_HEADERS &&
-        !strm->expect_final_response()) {
-      return 0;
+    if (frame->headers.cat == NGHTTP2_HCAT_HEADERS) {
+      if (strm->expect_final_response()) {
+        return 0;
+      }
+      auto &res = strm->response().impl();
+      res.deliver_body_eof();
+      res.call_on_trailers(res.trailer());
+      break;
     }
 
     if (strm->expect_final_response()) {
@@ -311,7 +345,9 @@ int on_frame_recv_callback(nghttp2_session *session, const nghttp2_frame *frame,
     auto &req = strm->request().impl();
     req.call_on_response(strm->response());
     if (frame->hd.flags & NGHTTP2_FLAG_END_STREAM) {
-      strm->response().impl().call_on_data(nullptr, 0);
+      auto &res = strm->response().impl();
+      res.call_on_trailers(res.header());
+      res.deliver_body_eof();
     }
     break;
   }
@@ -327,6 +363,11 @@ int on_frame_recv_callback(nghttp2_session *session, const nghttp2_frame *frame,
 
     strm->request().impl().call_on_push(push_strm->request());
 
+    break;
+  }
+  case NGHTTP2_GOAWAY: {
+    sess->call_on_goaway(frame->goaway.error_code,
+                         frame->goaway.last_stream_id);
     break;
   }
   }
@@ -392,11 +433,8 @@ bool session_impl::setup_session() {
 
   std::array<nghttp2_settings_entry, 2> iv{
       {{NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 100},
-       // typically client is just a *sink* and just process data as
-       // much as possible.  Use large window size by default.
        {NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE, window_size}}};
   nghttp2_submit_settings(session_, NGHTTP2_FLAG_NONE, iv.data(), iv.size());
-  // increase connection window size up to window_size
   nghttp2_session_set_local_window_size(session_, NGHTTP2_FLAG_NONE, 0,
                                         window_size);
   return true;
@@ -581,11 +619,22 @@ void session_impl::shutdown() {
     return;
   }
 
+  if (!session_) {
+    stop();
+    return;
+  }
+
   nghttp2_session_terminate_session(session_, NGHTTP2_NO_ERROR);
   signal_write();
 }
 
-boost::asio::io_service &session_impl::io_service() { return io_service_; }
+boost::asio::io_context &session_impl::io_context() {
+  return static_cast<boost::asio::io_context &>(executor_.context());
+}
+
+const boost::asio::any_io_executor &session_impl::executor() const {
+  return executor_;
+}
 
 void session_impl::signal_write() {
   if (!inside_callback_) {
@@ -622,7 +671,7 @@ void session_impl::do_read() {
     return;
   }
 
-  deadline_.expires_from_now(read_timeout_);
+  deadline_.expires_after(read_timeout_);
 
   auto self = this->shared_from_this();
 
@@ -717,9 +766,7 @@ void session_impl::do_write() {
 
   writing_ = true;
 
-  // Reset read deadline here, because normally client is sending
-  // something, it does not expect timeout while doing it.
-  deadline_.expires_from_now(read_timeout_);
+  deadline_.expires_after(read_timeout_);
 
   auto self = this->shared_from_this();
 
@@ -750,7 +797,7 @@ void session_impl::stop() {
 
 bool session_impl::stopped() const { return stopped_; }
 
-void session_impl::read_timeout(const boost::posix_time::time_duration &t) {
+void session_impl::read_timeout(std::chrono::nanoseconds t) {
   read_timeout_ = t;
 }
 

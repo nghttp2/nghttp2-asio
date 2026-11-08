@@ -27,6 +27,8 @@
 
 #include "nghttp2_config.h"
 
+#include <chrono>
+
 #include <nghttp2/asio_http2_server.h>
 
 #include "asio_server_serve_mux.h"
@@ -42,27 +44,30 @@ class server;
 class http2_impl {
 public:
   http2_impl();
+  explicit http2_impl(boost::asio::io_context &io_context);
   boost::system::error_code listen_and_serve(
       boost::system::error_code &ec, boost::asio::ssl::context *tls_context,
       const std::string &address, const std::string &port, bool asynchronous);
   void num_threads(size_t num_threads);
   void backlog(int backlog);
-  void tls_handshake_timeout(const boost::posix_time::time_duration &t);
-  void read_timeout(const boost::posix_time::time_duration &t);
+  void tls_handshake_timeout(std::chrono::nanoseconds t);
+  void read_timeout(std::chrono::nanoseconds t);
   bool handle(std::string pattern, request_cb cb);
+  void stop_listening();
   void stop();
   void join();
-  const std::vector<std::shared_ptr<boost::asio::io_service>> &
-  io_services() const;
+  const std::vector<std::shared_ptr<boost::asio::io_context>> &
+  io_contexts() const;
   std::vector<int> ports() const;
 
 private:
   std::unique_ptr<server> server_;
+  boost::asio::io_context *external_io_context_;
   std::size_t num_threads_;
   int backlog_;
   serve_mux mux_;
-  boost::posix_time::time_duration tls_handshake_timeout_;
-  boost::posix_time::time_duration read_timeout_;
+  std::chrono::nanoseconds tls_handshake_timeout_;
+  std::chrono::nanoseconds read_timeout_;
 };
 
 } // namespace server

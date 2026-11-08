@@ -27,6 +27,8 @@
 
 #include "asio_client_session_impl.h"
 
+#include <chrono>
+
 #include <nghttp2/asio_http2_client.h>
 
 namespace nghttp2 {
@@ -37,16 +39,16 @@ using boost::asio::ip::tcp;
 
 class session_tcp_impl : public session_impl {
 public:
-  session_tcp_impl(boost::asio::io_service &io_service, const std::string &host,
-                   const std::string &service,
-                   const boost::posix_time::time_duration &connect_timeout);
-  session_tcp_impl(boost::asio::io_service &io_service,
+  session_tcp_impl(const boost::asio::any_io_executor &ex,
+                   const std::string &host, const std::string &service,
+                   std::chrono::nanoseconds connect_timeout);
+  session_tcp_impl(const boost::asio::any_io_executor &ex,
                    const boost::asio::ip::tcp::endpoint &local_endpoint,
                    const std::string &host, const std::string &service,
-                   const boost::posix_time::time_duration &connect_timeout);
+                   std::chrono::nanoseconds connect_timeout);
   virtual ~session_tcp_impl();
 
-  virtual void start_connect(tcp::resolver::iterator endpoint_it);
+  virtual void start_connect(tcp::resolver::results_type results);
   virtual tcp::socket &socket();
   virtual void read_socket(
       std::function<void(const boost::system::error_code &ec, std::size_t n)>

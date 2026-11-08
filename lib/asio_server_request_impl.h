@@ -58,6 +58,11 @@ public:
   const boost::asio::ip::tcp::endpoint &remote_endpoint() const;
   void remote_endpoint(boost::asio::ip::tcp::endpoint ep);
 
+  boost::asio::any_io_executor get_executor() const;
+
+  X509 *tls_peer_certificate() const;
+  void tls_peer_certificate(X509 *cert);
+
   size_t header_buffer_size() const;
   void update_header_buffer_size(size_t len);
 
@@ -68,6 +73,7 @@ private:
   uri_ref uri_;
   data_cb on_data_cb_;
   boost::asio::ip::tcp::endpoint remote_ep_;
+  X509 *peer_cert_;
   size_t header_buffer_size_;
 };
 

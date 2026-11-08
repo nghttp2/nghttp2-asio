@@ -95,6 +95,10 @@ const header_map &request_impl::header() const { return header_; }
 
 void request_impl::stream(class stream *strm) { strm_ = strm; }
 
+int32_t request_impl::stream_id() const {
+  return strm_ == nullptr ? -1 : strm_->stream_id();
+}
+
 void request_impl::uri(uri_ref uri) { uri_ = std::move(uri); }
 
 const uri_ref &request_impl::uri() const { return uri_; }

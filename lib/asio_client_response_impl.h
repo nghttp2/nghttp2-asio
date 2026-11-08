@@ -42,7 +42,12 @@ public:
 
   void on_data(data_cb cb);
 
+  void on_trailers(trailers_cb cb);
+  void call_on_trailers(const header_map &trailers);
+
   void call_on_data(const uint8_t *data, std::size_t len);
+
+  void deliver_body_eof();
 
   void status_code(int sc);
   int status_code() const;
@@ -53,17 +58,28 @@ public:
   header_map &header();
   const header_map &header() const;
 
+  header_map &trailer();
+  const header_map &trailer() const;
+
   size_t header_buffer_size() const;
   void update_header_buffer_size(size_t len);
 
+  size_t trailer_buffer_size() const;
+  void update_trailer_buffer_size(size_t len);
+
 private:
   data_cb data_cb_;
+  trailers_cb trailers_cb_;
 
   header_map header_;
+  header_map trailer_;
 
   int64_t content_length_;
   size_t header_buffer_size_;
+  size_t trailer_buffer_size_;
   int status_code_;
+  bool body_eof_delivered_;
+  bool trailers_delivered_;
 };
 
 } // namespace client

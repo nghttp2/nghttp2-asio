@@ -39,11 +39,12 @@
 
 #include "nghttp2_config.h"
 
+#include <chrono>
+#include <functional>
+#include <mutex>
 #include <string>
 #include <vector>
 #include <memory>
-
-#include <boost/noncopyable.hpp>
 
 #include <nghttp2/asio_http2_server.h>
 
@@ -61,11 +62,18 @@ using boost::asio::ip::tcp;
 
 using ssl_socket = boost::asio::ssl::stream<tcp::socket>;
 
-class server : private boost::noncopyable {
+class server {
 public:
-  explicit server(std::size_t io_service_pool_size,
-                  const boost::posix_time::time_duration &tls_handshake_timeout,
-                  const boost::posix_time::time_duration &read_timeout);
+  server(const server &) = delete;
+  server &operator=(const server &) = delete;
+
+  explicit server(std::size_t io_context_pool_size,
+                  std::chrono::nanoseconds tls_handshake_timeout,
+                  std::chrono::nanoseconds read_timeout);
+
+  explicit server(boost::asio::io_context &io_context,
+                  std::chrono::nanoseconds tls_handshake_timeout,
+                  std::chrono::nanoseconds read_timeout);
 
   boost::system::error_code
   listen_and_serve(boost::system::error_code &ec,
@@ -73,39 +81,44 @@ public:
                    const std::string &address, const std::string &port,
                    int backlog, serve_mux &mux, bool asynchronous = false);
   void join();
+  void stop_listening();
   void stop();
 
-  /// Get access to all io_service objects.
-  const std::vector<std::shared_ptr<boost::asio::io_service>> &
-  io_services() const;
+  const std::vector<std::shared_ptr<boost::asio::io_context>> &
+  io_contexts() const;
 
-  /// Returns a vector with all the acceptors ports in use.
   const std::vector<int> ports() const;
 
 private:
-  /// Initiate an asynchronous accept operation.
   void start_accept(tcp::acceptor &acceptor, serve_mux &mux);
-  /// Same as above but with tls_context
   void start_accept(boost::asio::ssl::context &tls_context,
                     tcp::acceptor &acceptor, serve_mux &mux);
 
-  /// Resolves address and bind socket to the resolved addresses.
   boost::system::error_code bind_and_listen(boost::system::error_code &ec,
                                             const std::string &address,
                                             const std::string &port,
                                             int backlog);
 
-  /// The pool of io_service objects used to perform asynchronous
-  /// operations.
-  io_service_pool io_service_pool_;
+  boost::asio::io_context &get_io_context();
+  void track_connection(std::function<void()> stop_fn);
+  void close_connections();
 
-  /// Acceptor used to listen for incoming connections.
+  bool uses_external_io_context_;
+  std::unique_ptr<io_service_pool> io_context_pool_;
+  boost::asio::io_context *external_io_context_;
+  std::vector<std::shared_ptr<boost::asio::io_context>> external_io_contexts_;
+  std::mutex connection_closers_mutex_;
+  std::vector<std::function<void()>> connection_closers_;
+  // Serializes is_open(), async_accept() and close() on each acceptor. Accept
+  // completions re-arm from per-connection strands while stop_listening()
+  // runs on whichever thread calls stop(); an acceptor object is not safe to
+  // use from two threads at once.
+  std::mutex acceptors_mutex_;
   std::vector<tcp::acceptor> acceptors_;
-
   std::unique_ptr<boost::asio::ssl::context> ssl_ctx_;
 
-  boost::posix_time::time_duration tls_handshake_timeout_;
-  boost::posix_time::time_duration read_timeout_;
+  std::chrono::nanoseconds tls_handshake_timeout_;
+  std::chrono::nanoseconds read_timeout_;
 };
 
 } // namespace server

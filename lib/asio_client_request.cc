@@ -60,6 +60,8 @@ const header_map &request::header() const { return impl_->header(); }
 
 void request::resume() const { impl_->resume(); }
 
+int32_t request::stream_id() const { return impl_->stream_id(); }
+
 request_impl &request::impl() const { return *impl_; }
 
 } // namespace client

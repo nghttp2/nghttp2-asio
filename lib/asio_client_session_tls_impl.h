@@ -27,6 +27,8 @@
 
 #include "asio_client_session_impl.h"
 
+#include <chrono>
+
 #include <nghttp2/asio_http2_client.h>
 
 namespace nghttp2 {
@@ -39,13 +41,13 @@ using ssl_socket = boost::asio::ssl::stream<tcp::socket>;
 
 class session_tls_impl : public session_impl {
 public:
-  session_tls_impl(boost::asio::io_service &io_service,
+  session_tls_impl(const boost::asio::any_io_executor &ex,
                    boost::asio::ssl::context &tls_ctx, const std::string &host,
                    const std::string &service,
-                   const boost::posix_time::time_duration &connect_timeout);
+                   std::chrono::nanoseconds connect_timeout);
   virtual ~session_tls_impl();
 
-  virtual void start_connect(tcp::resolver::iterator endpoint_it);
+  virtual void start_connect(tcp::resolver::results_type results);
   virtual tcp::socket &socket();
   virtual void read_socket(
       std::function<void(const boost::system::error_code &ec, std::size_t n)>

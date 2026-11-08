@@ -39,10 +39,9 @@
 
 #include "nghttp2_config.h"
 
+#include <array>
+#include <chrono>
 #include <memory>
-
-#include <boost/noncopyable.hpp>
-#include <boost/array.hpp>
 
 #include <nghttp2/asio_http2_server.h>
 
@@ -51,46 +50,67 @@
 #include "util.h"
 #include "template.h"
 
-#if BOOST_VERSION >= 107000
-#  define GET_IO_SERVICE(s)                                                    \
-    ((boost::asio::io_context &)(s).get_executor().context())
-#else
-#  define GET_IO_SERVICE(s) ((s).get_io_service())
-#endif
-
 namespace nghttp2 {
 
 namespace asio_http2 {
 
 namespace server {
 
-/// Represents a single connection from a client.
+// Returns a new reference to the peer certificate of a completed TLS
+// handshake, or nullptr if the peer sent none or it failed verification.
+inline X509 *verified_peer_certificate(boost::asio::ip::tcp::socket &) {
+  return nullptr;
+}
+
+inline X509 *verified_peer_certificate(
+    boost::asio::ssl::stream<boost::asio::ip::tcp::socket> &socket) {
+  SSL *ssl = socket.native_handle();
+  if (SSL_get_verify_result(ssl) != X509_V_OK) {
+    return nullptr;
+  }
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && !defined(OPENSSL_IS_BORINGSSL)
+  return SSL_get1_peer_certificate(ssl);
+#else
+  return SSL_get_peer_certificate(ssl);
+#endif
+}
+
 template <typename socket_type>
-class connection : public std::enable_shared_from_this<connection<socket_type>>,
-                   private boost::noncopyable {
+class connection : public std::enable_shared_from_this<connection<socket_type>> {
 public:
-  /// Construct a connection with the given io_service.
+  connection(const connection &) = delete;
+  connection &operator=(const connection &) = delete;
+
   template <typename... SocketArgs>
-  explicit connection(
-      serve_mux &mux,
-      const boost::posix_time::time_duration &tls_handshake_timeout,
-      const boost::posix_time::time_duration &read_timeout,
-      SocketArgs &&...args)
+  explicit connection(serve_mux &mux,
+                      std::chrono::nanoseconds tls_handshake_timeout,
+                      std::chrono::nanoseconds read_timeout,
+                      SocketArgs &&...args)
       : socket_(std::forward<SocketArgs>(args)...),
         mux_(mux),
-        deadline_(GET_IO_SERVICE(socket_)),
+        deadline_(socket_.lowest_layer().get_executor()),
         tls_handshake_timeout_(tls_handshake_timeout),
         read_timeout_(read_timeout),
         writing_(false),
         stopped_(false) {}
 
-  /// Start the first asynchronous operation for the connection.
   void start() {
     boost::system::error_code ec;
 
+    // The handler outlives this connection when a write signal is still
+    // queued on the executor after stop(). A weak reference lets that late
+    // write become a no-op; a raw `this` would call do_write() on a destroyed
+    // connection, and a strong reference would form a cycle through handler_.
     handler_ = std::make_shared<http2_handler>(
-        GET_IO_SERVICE(socket_), socket_.lowest_layer().remote_endpoint(ec),
-        [this]() { do_write(); }, mux_);
+        socket_.lowest_layer().get_executor(),
+        socket_.lowest_layer().remote_endpoint(ec),
+        [weak_self = std::weak_ptr<connection>(this->shared_from_this())]() {
+          if (auto self = weak_self.lock()) {
+            self->do_write();
+          }
+        },
+        mux_);
+    handler_->peer_certificate(verified_peer_certificate(socket_));
     if (handler_->start() != 0) {
       stop();
       return;
@@ -101,15 +121,19 @@ public:
   socket_type &socket() { return socket_; }
 
   void start_tls_handshake_deadline() {
-    deadline_.expires_from_now(tls_handshake_timeout_);
+    deadline_.expires_after(tls_handshake_timeout_);
     deadline_.async_wait(
-        std::bind(&connection::handle_deadline, this->shared_from_this()));
+        [self = this->shared_from_this()](const boost::system::error_code &) {
+          self->handle_deadline();
+        });
   }
 
   void start_read_deadline() {
-    deadline_.expires_from_now(read_timeout_);
+    deadline_.expires_after(read_timeout_);
     deadline_.async_wait(
-        std::bind(&connection::handle_deadline, this->shared_from_this()));
+        [self = this->shared_from_this()](const boost::system::error_code &) {
+          self->handle_deadline();
+        });
   }
 
   void handle_deadline() {
@@ -117,21 +141,21 @@ public:
       return;
     }
 
-    if (deadline_.expires_at() <=
-        boost::asio::deadline_timer::traits_type::now()) {
+    if (deadline_.expiry() <= boost::asio::steady_timer::clock_type::now()) {
       stop();
-      deadline_.expires_at(boost::posix_time::pos_infin);
       return;
     }
 
     deadline_.async_wait(
-        std::bind(&connection::handle_deadline, this->shared_from_this()));
+        [self = this->shared_from_this()](const boost::system::error_code &) {
+          self->handle_deadline();
+        });
   }
 
   void do_read() {
     auto self = this->shared_from_this();
 
-    deadline_.expires_from_now(read_timeout_);
+    deadline_.expires_after(read_timeout_);
 
     socket_.async_read_some(
         boost::asio::buffer(buffer_),
@@ -155,12 +179,6 @@ public:
           }
 
           do_read();
-
-          // If an error occurs then no new asynchronous operations are
-          // started. This means that all shared_ptr references to the
-          // connection object will disappear and the object will be
-          // destroyed automatically after this handler returns. The
-          // connection class's destructor closes the socket.
         });
   }
 
@@ -190,9 +208,7 @@ public:
 
     writing_ = true;
 
-    // Reset read deadline here, because normally client is sending
-    // something, it does not expect timeout while doing it.
-    deadline_.expires_from_now(read_timeout_);
+    deadline_.expires_after(read_timeout_);
 
     boost::asio::async_write(
         socket_, boost::asio::buffer(outbuf_, nwrite),
@@ -206,11 +222,6 @@ public:
 
           do_write();
         });
-
-    // No new asynchronous operations are started. This means that all
-    // shared_ptr references to the connection object will disappear and
-    // the object will be destroyed automatically after this handler
-    // returns. The connection class's destructor closes the socket.
   }
 
   void stop() {
@@ -231,14 +242,12 @@ private:
 
   std::shared_ptr<http2_handler> handler_;
 
-  /// Buffer for incoming data.
-  boost::array<uint8_t, 8_k> buffer_;
+  std::array<uint8_t, 8_k> buffer_;
+  std::array<uint8_t, 64_k> outbuf_;
 
-  boost::array<uint8_t, 64_k> outbuf_;
-
-  boost::asio::deadline_timer deadline_;
-  boost::posix_time::time_duration tls_handshake_timeout_;
-  boost::posix_time::time_duration read_timeout_;
+  boost::asio::steady_timer deadline_;
+  std::chrono::nanoseconds tls_handshake_timeout_;
+  std::chrono::nanoseconds read_timeout_;
 
   bool writing_;
   bool stopped_;

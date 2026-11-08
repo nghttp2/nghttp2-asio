@@ -23,12 +23,15 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "asio_server_request_impl.h"
+#include "asio_server_http2_handler.h"
+#include "asio_server_stream.h"
 
 namespace nghttp2 {
 namespace asio_http2 {
 namespace server {
 
-request_impl::request_impl() : strm_(nullptr), header_buffer_size_(0) {}
+request_impl::request_impl()
+    : strm_(nullptr), peer_cert_(nullptr), header_buffer_size_(0) {}
 
 const header_map &request_impl::header() const { return header_; }
 
@@ -61,6 +64,14 @@ const boost::asio::ip::tcp::endpoint &request_impl::remote_endpoint() const {
 void request_impl::remote_endpoint(boost::asio::ip::tcp::endpoint ep) {
   remote_ep_ = std::move(ep);
 }
+
+boost::asio::any_io_executor request_impl::get_executor() const {
+  return strm_->handler()->get_executor();
+}
+
+X509 *request_impl::tls_peer_certificate() const { return peer_cert_; }
+
+void request_impl::tls_peer_certificate(X509 *cert) { peer_cert_ = cert; }
 
 size_t request_impl::header_buffer_size() const { return header_buffer_size_; }
 

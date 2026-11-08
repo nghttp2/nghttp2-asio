@@ -1,0 +1,14 @@
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
+
+cc_test(
+    name = "rpcpio_features_test",
+    srcs = ["rpcpio_features_test.cc"],
+    linkopts = select({
+        "@platforms//os:linux": ["-pthread"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//:nghttp2_asio",
+        "@boost.asio//:boost.asio",
+    ],
+)

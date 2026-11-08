@@ -38,6 +38,9 @@ namespace server {
 
 http2::http2() : impl_(std::make_unique<http2_impl>()) {}
 
+http2::http2(boost::asio::io_context &io_context)
+    : impl_(std::make_unique<http2_impl>(io_context)) {}
+
 http2::~http2() {}
 
 http2::http2(http2 &&other) noexcept : impl_(std::move(other.impl_)) {}
@@ -69,11 +72,11 @@ void http2::num_threads(size_t num_threads) { impl_->num_threads(num_threads); }
 
 void http2::backlog(int backlog) { impl_->backlog(backlog); }
 
-void http2::tls_handshake_timeout(const boost::posix_time::time_duration &t) {
+void http2::tls_handshake_timeout(std::chrono::nanoseconds t) {
   impl_->tls_handshake_timeout(t);
 }
 
-void http2::read_timeout(const boost::posix_time::time_duration &t) {
+void http2::read_timeout(std::chrono::nanoseconds t) {
   impl_->read_timeout(t);
 }
 
@@ -81,13 +84,15 @@ bool http2::handle(std::string pattern, request_cb cb) {
   return impl_->handle(std::move(pattern), std::move(cb));
 }
 
+void http2::stop_listening() { impl_->stop_listening(); }
+
 void http2::stop() { impl_->stop(); }
 
 void http2::join() { return impl_->join(); }
 
-const std::vector<std::shared_ptr<boost::asio::io_service>> &
-http2::io_services() const {
-  return impl_->io_services();
+const std::vector<std::shared_ptr<boost::asio::io_context>> &
+http2::io_contexts() const {
+  return impl_->io_contexts();
 }
 
 std::vector<int> http2::ports() const { return impl_->ports(); }

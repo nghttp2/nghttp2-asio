@@ -326,9 +326,12 @@ set(PKGLIBDIR "${CMAKE_INSTALL_FULL_LIBDIR}/${CMAKE_PROJECT_NAME}")
 
 install(FILES README.rst DESTINATION "${CMAKE_INSTALL_DOCDIR}")
 
+enable_testing()
+
 add_subdirectory(lib)
 #add_subdirectory(lib/includes)
 add_subdirectory(third-party)
+add_subdirectory(tests)
 #add_subdirectory(src/includes)
 #add_subdirectory(tests/testdata)
 

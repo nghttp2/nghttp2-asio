@@ -25,6 +25,8 @@
 #ifndef ASIO_HTTP2_CLIENT_H
 #define ASIO_HTTP2_CLIENT_H
 
+#include <chrono>
+
 #include <nghttp2/asio_http2.h>
 
 namespace nghttp2 {
@@ -34,6 +36,10 @@ namespace asio_http2 {
 namespace client {
 
 class response_impl;
+class response;
+
+using response_cb = std::function<void(const response &)>;
+using trailers_cb = std::function<void(const header_map &)>;
 
 class response {
 public:
@@ -45,6 +51,12 @@ public:
   // received.
   void on_data(data_cb cb) const;
 
+  // Sets callback which is invoked when response trailer fields are
+  // received.  Called after on_response and body EOF (on_data with len
+  // 0) when trailers are present.  For trailers-only responses, invoked
+  // with the sole response header block immediately after on_response.
+  void on_trailers(trailers_cb cb) const;
+
   // Returns status code.
   int status_code() const;
 
@@ -55,6 +67,9 @@ public:
   // which start with colon (:), are excluded from this list.
   const header_map &header() const;
 
+  // Returns the response trailer fields.
+  const header_map &trailer() const;
+
   // Application must not call this directly.
   response_impl &impl() const;
 
@@ -64,10 +79,12 @@ private:
 
 class request;
 
-using response_cb = std::function<void(const response &)>;
 using request_cb = std::function<void(const request &)>;
+// Called when connection is established; receives the connected endpoint.
 using connect_cb =
-    std::function<void(boost::asio::ip::tcp::resolver::iterator)>;
+    std::function<void(boost::asio::ip::tcp::endpoint)>;
+using goaway_cb =
+    std::function<void(uint32_t error_code, int32_t last_stream_id)>;
 
 class request_impl;
 
@@ -100,6 +117,9 @@ public:
 
   // Resumes deferred uploading.
   void resume() const;
+
+  // Returns the HTTP/2 stream identifier assigned to this request.
+  int32_t stream_id() const;
 
   // Returns method (e.g., GET).
   const std::string &method() const;
@@ -147,41 +167,67 @@ public:
   // Starts HTTP/2 session by connecting to |host| and |service|
   // (e.g., "80") using clear text TCP connection with connect timeout
   // 60 seconds.
-  session(boost::asio::io_service &io_service, const std::string &host,
+  session(boost::asio::io_context &io_context, const std::string &host,
           const std::string &service);
 
   // Same as previous but with pegged local endpoint
-  session(boost::asio::io_service &io_service,
+  session(boost::asio::io_context &io_context,
           const boost::asio::ip::tcp::endpoint &local_endpoint,
           const std::string &host, const std::string &service);
 
   // Starts HTTP/2 session by connecting to |host| and |service|
-  // (e.g., "80") using clear text TCP connection with given connect
-  // timeout.
-  session(boost::asio::io_service &io_service, const std::string &host,
-          const std::string &service,
-          const boost::posix_time::time_duration &connect_timeout);
+  // (e.g., "80") using clear text TCP connection with given connect timeout.
+  // Accepts any std::chrono duration (e.g., std::chrono::seconds(10)).
+  session(boost::asio::io_context &io_context, const std::string &host,
+          const std::string &service, std::chrono::nanoseconds connect_timeout);
 
   // Same as previous but with pegged local endpoint
-  session(boost::asio::io_service &io_service,
+  session(boost::asio::io_context &io_context,
           const boost::asio::ip::tcp::endpoint &local_endpoint,
           const std::string &host, const std::string &service,
-          const boost::posix_time::time_duration &connect_timeout);
+          std::chrono::nanoseconds connect_timeout);
 
   // Starts HTTP/2 session by connecting to |host| and |service|
   // (e.g., "443") using encrypted SSL/TLS connection with connect
   // timeout 60 seconds.
-  session(boost::asio::io_service &io_service,
+  session(boost::asio::io_context &io_context,
           boost::asio::ssl::context &tls_context, const std::string &host,
           const std::string &service);
 
   // Starts HTTP/2 session by connecting to |host| and |service|
-  // (e.g., "443") using encrypted SSL/TLS connection with given
-  // connect timeout.
-  session(boost::asio::io_service &io_service,
+  // (e.g., "443") using encrypted SSL/TLS connection with given connect
+  // timeout.  Accepts any std::chrono duration.
+  session(boost::asio::io_context &io_context,
           boost::asio::ssl::context &tls_context, const std::string &host,
-          const std::string &service,
-          const boost::posix_time::time_duration &connect_timeout);
+          const std::string &service, std::chrono::nanoseconds connect_timeout);
+
+  // Same six constructors as above, but taking an executor directly instead
+  // of an io_context. This is what makes it safe to run a session on an
+  // io_context shared with other work across multiple threads: pass a
+  // strand (or any other executor that serializes the handlers posted
+  // through it), and every socket, timer, and resolver this session owns,
+  // and every handler this session ever dispatches, uses that executor —
+  // nghttp2 sessions are not thread-safe against concurrent entry. The
+  // io_context-based constructors above are convenience wrappers that pass
+  // io_context.get_executor(), which does not serialize anything beyond
+  // what the io_context itself already does.
+  session(const boost::asio::any_io_executor &ex, const std::string &host,
+          const std::string &service);
+  session(const boost::asio::any_io_executor &ex,
+          const boost::asio::ip::tcp::endpoint &local_endpoint,
+          const std::string &host, const std::string &service);
+  session(const boost::asio::any_io_executor &ex, const std::string &host,
+          const std::string &service, std::chrono::nanoseconds connect_timeout);
+  session(const boost::asio::any_io_executor &ex,
+          const boost::asio::ip::tcp::endpoint &local_endpoint,
+          const std::string &host, const std::string &service,
+          std::chrono::nanoseconds connect_timeout);
+  session(const boost::asio::any_io_executor &ex,
+          boost::asio::ssl::context &tls_context, const std::string &host,
+          const std::string &service);
+  session(const boost::asio::any_io_executor &ex,
+          boost::asio::ssl::context &tls_context, const std::string &host,
+          const std::string &service, std::chrono::nanoseconds connect_timeout);
 
   ~session();
 
@@ -189,20 +235,25 @@ public:
   session &operator=(session &&other) noexcept;
 
   // Sets callback which is invoked after connection is established.
+  // The callback receives the connected tcp::endpoint.
   void on_connect(connect_cb cb) const;
 
   // Sets callback which is invoked there is connection level error
   // and session is terminated.
   void on_error(error_cb cb) const;
 
+  // Sets callback which is invoked when a GOAWAY frame is received.
+  void on_goaway(goaway_cb cb) const;
+
   // Sets read timeout, which defaults to 60 seconds.
-  void read_timeout(const boost::posix_time::time_duration &t);
+  // Accepts any std::chrono duration (e.g., std::chrono::seconds(30)).
+  void read_timeout(std::chrono::nanoseconds t);
 
   // Shutdowns connection.
   void shutdown() const;
 
-  // Returns underlying io_service object.
-  boost::asio::io_service &io_service() const;
+  // Returns underlying io_context object.
+  boost::asio::io_context &io_context() const;
 
   // Submits request to server using |method| (e.g., "GET"), |uri|
   // (e.g., "http://localhost/") and optionally additional header
@@ -215,9 +266,7 @@ public:
 
   // Submits request to server using |method| (e.g., "GET"), |uri|
   // (e.g., "http://localhost/") and optionally additional header
-  // fields.  The |data| is request body.  This function returns
-  // pointer to request object if it succeeds, or nullptr and |ec|
-  // contains error message.
+  // fields.  The |data| is request body.
   const request *submit(boost::system::error_code &ec,
                         const std::string &method, const std::string &uri,
                         std::string data, header_map h = header_map{},
@@ -225,9 +274,7 @@ public:
 
   // Submits request to server using |method| (e.g., "GET"), |uri|
   // (e.g., "http://localhost/") and optionally additional header
-  // fields.  The |cb| is used to generate request body.  This
-  // function returns pointer to request object if it succeeds, or
-  // nullptr and |ec| contains error message.
+  // fields.  The |cb| is used to generate request body.
   const request *submit(boost::system::error_code &ec,
                         const std::string &method, const std::string &uri,
                         generator_cb cb, header_map h = header_map{},

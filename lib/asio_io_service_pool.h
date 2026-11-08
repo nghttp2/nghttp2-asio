@@ -43,7 +43,6 @@
 #include <memory>
 #include <future>
 
-#include <boost/noncopyable.hpp>
 #include <boost/thread.hpp>
 
 #include <nghttp2/asio_http2.h>
@@ -52,42 +51,30 @@ namespace nghttp2 {
 
 namespace asio_http2 {
 
-/// A pool of io_service objects.
-class io_service_pool : private boost::noncopyable {
+class io_service_pool {
 public:
-  /// Construct the io_service pool.
+  io_service_pool(const io_service_pool &) = delete;
+  io_service_pool &operator=(const io_service_pool &) = delete;
+
   explicit io_service_pool(std::size_t pool_size);
 
-  /// Run all io_service objects in the pool.
   void run(bool asynchronous = false);
-
-  /// Stop all io_service objects in the pool.
   void force_stop();
-
-  /// Destroy all work objects to signals end of work
   void stop();
-
-  /// Join on all io_service objects in the pool.
   void join();
 
-  /// Get an io_service to use.
-  boost::asio::io_service &get_io_service();
+  boost::asio::io_context &get_io_context();
 
-  /// Get access to all io_service objects.
-  const std::vector<std::shared_ptr<boost::asio::io_service>> &
-  io_services() const;
+  const std::vector<std::shared_ptr<boost::asio::io_context>> &
+  io_contexts() const;
 
 private:
-  /// The pool of io_services.
-  std::vector<std::shared_ptr<boost::asio::io_service>> io_services_;
+  using work_guard_type =
+      boost::asio::executor_work_guard<boost::asio::io_context::executor_type>;
 
-  /// The work that keeps the io_services running.
-  std::vector<std::shared_ptr<boost::asio::io_service::work>> work_;
-
-  /// The next io_service to use for a connection.
-  std::size_t next_io_service_;
-
-  /// Futures to all the io_service objects
+  std::vector<std::shared_ptr<boost::asio::io_context>> io_contexts_;
+  std::vector<work_guard_type> work_;
+  std::size_t next_io_context_;
   std::vector<std::future<std::size_t>> futures_;
 };
 

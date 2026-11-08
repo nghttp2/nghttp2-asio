@@ -27,7 +27,8 @@
 
 #include "nghttp2_config.h"
 
-#include <boost/array.hpp>
+#include <array>
+#include <chrono>
 
 #include <nghttp2/asio_http2_client.h>
 
@@ -43,20 +44,30 @@ using boost::asio::ip::tcp;
 
 class session_impl : public std::enable_shared_from_this<session_impl> {
 public:
-  session_impl(boost::asio::io_service &io_service,
-               const boost::posix_time::time_duration &connect_timeout);
+  // ex is the executor every socket, timer, and resolver this session owns
+  // is constructed with, and the only executor any of this session's
+  // internal handlers are ever dispatched through. Passing a strand (or any
+  // other serializing executor) here is what makes an rpcpio-style caller's
+  // multi-threaded io_context safe to run a session on: nghttp2 sessions
+  // are not thread-safe, so without this, two of the caller's io_context
+  // threads could enter the same session concurrently.
+  session_impl(const boost::asio::any_io_executor &ex,
+               std::chrono::nanoseconds connect_timeout);
   virtual ~session_impl();
 
   void start_resolve(const std::string &host, const std::string &service);
 
-  void connected(tcp::resolver::iterator endpoint_it);
+  void connected(tcp::endpoint endpoint);
   void not_connected(const boost::system::error_code &ec);
 
   void on_connect(connect_cb cb);
   void on_error(error_cb cb);
+  void on_goaway(goaway_cb cb);
 
   const connect_cb &on_connect() const;
   const error_cb &on_error() const;
+  const goaway_cb &on_goaway() const;
+  void call_on_goaway(uint32_t error_code, int32_t last_stream_id);
 
   int write_trailer(stream &strm, header_map h);
 
@@ -72,7 +83,7 @@ public:
                         const std::string &method, const std::string &uri,
                         generator_cb cb, header_map h, priority_spec spec);
 
-  virtual void start_connect(tcp::resolver::iterator endpoint_it) = 0;
+  virtual void start_connect(tcp::resolver::results_type results) = 0;
   virtual tcp::socket &socket() = 0;
   virtual void read_socket(
       std::function<void(const boost::system::error_code &ec, std::size_t n)>
@@ -84,7 +95,8 @@ public:
 
   void shutdown();
 
-  boost::asio::io_service &io_service();
+  boost::asio::io_context &io_context();
+  const boost::asio::any_io_executor &executor() const;
 
   void signal_write();
 
@@ -94,14 +106,14 @@ public:
   void do_read();
   void do_write();
 
-  void read_timeout(const boost::posix_time::time_duration &t);
+  void read_timeout(std::chrono::nanoseconds t);
 
   void stop();
   bool stopped() const;
 
 protected:
-  boost::array<uint8_t, 8_k> rb_;
-  boost::array<uint8_t, 64_k> wb_;
+  std::array<uint8_t, 8_k> rb_;
+  std::array<uint8_t, 64_k> wb_;
   std::size_t wblen_;
 
 private:
@@ -112,19 +124,20 @@ private:
   void start_ping();
   void handle_ping(const boost::system::error_code &ec);
 
-  boost::asio::io_service &io_service_;
+  boost::asio::any_io_executor executor_;
   tcp::resolver resolver_;
 
   std::map<int32_t, std::unique_ptr<stream>> streams_;
 
   connect_cb connect_cb_;
   error_cb error_cb_;
+  goaway_cb goaway_cb_;
 
-  boost::asio::deadline_timer deadline_;
-  boost::posix_time::time_duration connect_timeout_;
-  boost::posix_time::time_duration read_timeout_;
+  boost::asio::steady_timer deadline_;
+  std::chrono::nanoseconds connect_timeout_;
+  std::chrono::nanoseconds read_timeout_;
 
-  boost::asio::deadline_timer ping_;
+  boost::asio::steady_timer ping_;
 
   nghttp2_session *session_;
 
